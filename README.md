@@ -1,94 +1,70 @@
-# JEEVES AI - Personal PC Assistant
+# JEEVES AI - Cyberpunk PC Assistant
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/AI-Groq_Llama_3.3-orange?style=for-the-badge&logo=meta&logoColor=white" />
-  <img src="https://img.shields.io/badge/Cost-100%25_FREE-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Speed-ULTRA_FAST-red?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/UI-CYBERPUNK-ff00ff?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/AI-Groq_Llama_3.3-00f5ff?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Voice-HINDI-ff6b35?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Cost-FREE-00ff88?style=for-the-badge" />
 </p>
 
 <p align="center">
-  <b>Your Personal JARVIS-like AI Assistant for PC</b><br>
-  Voice Commands | PC Control | AI Chat | 100% Free | Ultra Fast
+  <b>🤖 JARVIS-like AI Assistant with SciFi Cyberpunk UI</b><br>
+  Hindi/English Voice | Continuous Mic | PC Control | 100% FREE
 </p>
 
 ---
 
-## Why Groq?
-
-| Feature | Groq | Others |
-|---------|------|--------|
-| Speed | **Ultra Fast** (fastest in market) | Slow |
-| Cost | **FREE** | $20+/month |
-| Model | Llama 3.3 70B | Varies |
-| Rate Limits | Generous | Restrictive |
-
----
-
-## Features
+## ✨ Features
 
 | Feature | Description |
 |---------|-------------|
-| 🎤 **Voice Commands** | Talk to JEEVES using microphone |
-| 🔊 **Voice Response** | JEEVES speaks back |
-| 🤖 **AI Powered** | Groq AI with Llama 3.3 70B (FREE) |
-| 📁 **File Management** | Create, read, list files |
-| 🖥️ **App Control** | Open/close applications |
-| 🌐 **Web Control** | Open websites, Google search |
-| 📸 **Screenshot** | Take screenshots |
-| 🔊 **Volume Control** | Up, down, mute |
-| 💻 **System Info** | CPU, RAM, disk usage |
-| 🔒 **PC Control** | Lock, shutdown, restart |
+| 🎨 **Cyberpunk UI** | SciFi dark theme with neon colors |
+| 🎤 **Continuous Mic** | One click = always listening |
+| 🗣️ **Hindi Voice** | Natural Hindi + English support |
+| ⚡ **Ultra Fast** | Powered by Groq (fastest AI) |
+| 🆓 **100% FREE** | No paid APIs |
+| 💻 **PC Control** | Apps, files, system, volume |
 
 ---
 
-## Installation
+## 🚀 Quick Start
 
-### Step 1: Get FREE Groq API Key
+### 1. Get FREE API Key
+Go to [console.groq.com/keys](https://console.groq.com/keys) and create key
 
-1. Go to [console.groq.com/keys](https://console.groq.com/keys)
-2. Sign up with Google/GitHub
-3. Click "Create API Key"
-4. Copy the key
-
-### Step 2: Download & Run
-
+### 2. Run JEEVES
 ```bash
 git clone https://github.com/DAXXTEAM/jeeves-ai.git
 cd jeeves-ai
 python jeeves.py
 ```
 
-Dependencies install automatically!
-
-### Step 3: Connect & Use
-
-1. Paste your Groq API key
-2. Click "Connect"
-3. Start talking!
+### 3. Connect & Talk!
+- Paste API key → Click Connect
+- Click "🎤 MIC" to enable continuous listening
+- Speak in Hindi or English!
 
 ---
 
-## Commands Examples
+## 🎤 Voice Commands (Hindi)
 
-| Say This | JEEVES Does |
-|----------|-------------|
-| "Open Chrome" | Opens Chrome |
-| "Search Python tutorials" | Google search |
-| "System info" | Shows CPU, RAM, disk |
-| "Take screenshot" | Saves to Desktop |
-| "Open YouTube" | Opens youtube.com |
-| "Volume up/down/mute" | Controls sound |
-| "Lock computer" | Locks PC |
+| Bolo Ye | JEEVES Karega |
+|---------|---------------|
+| "Chrome kholo" | Chrome open |
+| "YouTube kholo" | Browser mein YouTube |
+| "System info dikhao" | CPU, RAM, disk |
+| "Screenshot lo" | Desktop par save |
+| "Volume badhao" | Sound increase |
+| "PC lock karo" | Lock screen |
 
 ---
 
-## Requirements
+## 🎨 Cyberpunk UI
 
-- Python 3.8+
-- Internet connection
-- Microphone (optional, for voice)
-- Speakers (optional, for voice response)
+- Neon cyan, magenta, purple colors
+- Animated glowing icon
+- Dark SciFi theme
+- Smooth transitions
 
 ---
 
@@ -101,6 +77,6 @@ Dependencies install automatically!
 ---
 
 <p align="center">
-  Made with ❤️ in India by DAXXTEAM<br>
-  <b>"At your service, Sir!"</b> - JEEVES
+  ◈ Made in India by DAXXTEAM ◈<br>
+  <b>"Haan Boss, main ready hoon!"</b> - JEEVES
 </p>
