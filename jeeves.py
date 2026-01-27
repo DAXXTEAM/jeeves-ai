@@ -4,16 +4,16 @@ By DAXXTEAM
 
 Features:
 - Voice Commands (Speech to Text)
-- AI Chat (Google Gemini - FREE)
+- AI Chat (Groq AI - FREE & FAST)
 - System Control (Apps, Files, Commands)
 - Voice Response (Text to Speech)
 - Beautiful Dark UI
 
 Requirements:
-pip install google-genai SpeechRecognition pyttsx3 pyautogui psutil pillow
+pip install groq SpeechRecognition pyttsx3 pyautogui psutil pillow
 
 Usage:
-1. Get FREE Gemini API key from: https://aistudio.google.com/app/apikey
+1. Get FREE Groq API key from: https://console.groq.com/keys
 2. Run: python jeeves.py
 3. Enter your API key
 4. Start talking to JEEVES!
@@ -36,7 +36,7 @@ from tkinter import ttk, scrolledtext, messagebox, filedialog
 # Check and install dependencies
 def install_dependencies():
     required = {
-        'google-genai': 'google.genai',
+        'groq': 'groq',
         'SpeechRecognition': 'speech_recognition',
         'pyttsx3': 'pyttsx3',
         'psutil': 'psutil',
@@ -52,7 +52,7 @@ def install_dependencies():
 
 install_dependencies()
 
-from google import genai
+from groq import Groq
 import speech_recognition as sr
 import pyttsx3
 import psutil
@@ -64,12 +64,6 @@ class JeevesAI:
         self.root.geometry("900x700")
         self.root.configure(bg='#0f172a')
         self.root.resizable(True, True)
-        
-        # Set icon if available
-        try:
-            self.root.iconbitmap('icon.ico')
-        except:
-            pass
         
         # Variables
         self.api_key = tk.StringVar()
@@ -89,7 +83,7 @@ class JeevesAI:
         # Create UI
         self.create_ui()
         
-        # System prompt for Gemini
+        # System prompt
         self.system_prompt = """You are JEEVES, an advanced AI personal assistant created by DAXXTEAM. You can:
 
 1. SYSTEM COMMANDS (prefix with CMD:):
@@ -108,7 +102,6 @@ class JeevesAI:
 
 2. INFORMATION:
    - Current time/date
-   - Weather info
    - Calculations
    - General knowledge
    - Coding help
@@ -121,7 +114,7 @@ class JeevesAI:
 When executing commands, first explain what you're doing, then output the command.
 Example: "Opening Google Chrome for you, Sir. CMD:OPEN_APP:chrome"
 
-Always respond conversationally but be efficient. Keep responses concise unless asked for details."""
+Always respond conversationally but be efficient. Keep responses concise."""
 
     def load_config(self):
         try:
@@ -143,7 +136,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         try:
             self.tts_engine = pyttsx3.init()
             voices = self.tts_engine.getProperty('voices')
-            # Try to use a male voice for JEEVES
             for voice in voices:
                 if 'male' in voice.name.lower() or 'david' in voice.name.lower():
                     self.tts_engine.setProperty('voice', voice.id)
@@ -166,7 +158,7 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                               fg='#3b82f6', bg='#0f172a')
         title_label.pack(side=tk.LEFT)
         
-        subtitle_label = tk.Label(header_frame, text="Personal Assistant", font=('Segoe UI', 12),
+        subtitle_label = tk.Label(header_frame, text="Personal Assistant (Powered by Groq)", font=('Segoe UI', 12),
                                  fg='#64748b', bg='#0f172a')
         subtitle_label.pack(side=tk.LEFT, padx=(10, 0), pady=(12, 0))
         
@@ -174,7 +166,7 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         api_frame = tk.Frame(main_frame, bg='#1e293b', padx=15, pady=15)
         api_frame.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(api_frame, text="Gemini API Key:", font=('Segoe UI', 10),
+        tk.Label(api_frame, text="Groq API Key:", font=('Segoe UI', 10),
                 fg='#94a3b8', bg='#1e293b').pack(side=tk.LEFT)
         
         api_entry = tk.Entry(api_frame, textvariable=self.api_key, font=('Consolas', 10),
@@ -189,7 +181,7 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         
         get_key_btn = tk.Button(api_frame, text="Get FREE Key", font=('Segoe UI', 9),
                                bg='#1e293b', fg='#3b82f6', relief=tk.FLAT,
-                               cursor='hand2', command=lambda: webbrowser.open('https://aistudio.google.com/app/apikey'))
+                               cursor='hand2', command=lambda: webbrowser.open('https://console.groq.com/keys'))
         get_key_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         self.status_label = tk.Label(api_frame, text="● Disconnected", font=('Segoe UI', 10),
@@ -206,7 +198,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                                                       padx=15, pady=15, state=tk.DISABLED)
         self.chat_display.pack(fill=tk.BOTH, expand=True)
         
-        # Configure tags for styling
         self.chat_display.tag_config('user', foreground='#3b82f6', font=('Segoe UI', 11, 'bold'))
         self.chat_display.tag_config('jeeves', foreground='#10b981', font=('Segoe UI', 11, 'bold'))
         self.chat_display.tag_config('system', foreground='#f59e0b', font=('Segoe UI', 10, 'italic'))
@@ -222,7 +213,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=12, padx=(0, 10))
         self.input_entry.bind('<Return>', lambda e: self.send_message())
         
-        # Voice Button
         self.voice_btn = tk.Button(input_frame, text="🎤", font=('Segoe UI', 16),
                                   bg='#334155', fg='#f1f5f9', relief=tk.FLAT,
                                   width=3, cursor='hand2', command=self.toggle_voice)
@@ -238,11 +228,11 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         actions_frame.pack(fill=tk.X, pady=(15, 0))
         
         quick_actions = [
-            ("📁 Open Explorer", "Open File Explorer"),
-            ("🌐 Open Browser", "Open web browser"),
-            ("💻 System Info", "Show system information"),
+            ("📁 Explorer", "Open File Explorer"),
+            ("🌐 Browser", "Open web browser"),
+            ("💻 System", "Show system information"),
             ("📸 Screenshot", "Take a screenshot"),
-            ("🔊 Volume Up", "Increase volume"),
+            ("🔊 Vol+", "Increase volume"),
             ("🔇 Mute", "Mute audio"),
         ]
         
@@ -252,13 +242,11 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                            cursor='hand2', command=lambda c=command: self.quick_action(c))
             btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        # Footer
-        footer = tk.Label(main_frame, text="Made with ❤️ by DAXXTEAM | Press 🎤 or type to talk",
+        footer = tk.Label(main_frame, text="Made with ❤️ by DAXXTEAM | Powered by Groq (FREE & FAST)",
                          font=('Segoe UI', 9), fg='#64748b', bg='#0f172a')
         footer.pack(pady=(15, 0))
         
-        # Welcome message
-        self.add_message("JEEVES", "Good day! I'm JEEVES, your personal AI assistant. Please connect your Gemini API key to get started. You can get a FREE key by clicking 'Get FREE Key'.", 'jeeves')
+        self.add_message("JEEVES", "Good day! I'm JEEVES, your personal AI assistant. Get your FREE Groq API key by clicking 'Get FREE Key'. Groq is super fast and completely free!", 'jeeves')
     
     def add_message(self, sender, message, tag='user'):
         self.chat_display.config(state=tk.NORMAL)
@@ -271,34 +259,29 @@ Always respond conversationally but be efficient. Keep responses concise unless 
     def connect_api(self):
         api_key = self.api_key.get().strip()
         if not api_key:
-            messagebox.showerror("Error", "Please enter your Gemini API key")
+            messagebox.showerror("Error", "Please enter your Groq API key")
             return
         
         try:
-            # Use new google-genai SDK
-            self.client = genai.Client(api_key=api_key)
+            self.client = Groq(api_key=api_key)
             
-            # Test connection with a simple request
-            response = self.client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents='Say "JEEVES online" in exactly 2 words'
+            # Test connection
+            response = self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": "Say 'JEEVES online' in 2 words"}],
+                max_tokens=10
             )
             
-            # Initialize chat history with system prompt
-            self.chat_history = [
-                {"role": "user", "parts": [{"text": self.system_prompt}]},
-                {"role": "model", "parts": [{"text": "Understood. I am JEEVES, ready to assist you, Sir. I can control your PC, answer questions, and execute commands. How may I help you today?"}]}
-            ]
+            self.chat_history = [{"role": "system", "content": self.system_prompt}]
             
             self.status_label.config(text="● Connected", fg='#10b981')
             self.save_config()
-            self.add_message("SYSTEM", "Successfully connected to Gemini AI!", 'system')
+            self.add_message("SYSTEM", "Connected to Groq AI (Llama 3.3 70B)!", 'system')
             self.speak("JEEVES online and ready to assist, Sir!")
             
         except Exception as e:
             self.status_label.config(text="● Error", fg='#ef4444')
-            error_msg = str(e)
-            messagebox.showerror("Connection Error", f"Failed to connect: {error_msg}\n\nMake sure your API key is correct.")
+            messagebox.showerror("Connection Error", f"Failed to connect: {str(e)}")
     
     def send_message(self):
         message = self.input_entry.get().strip()
@@ -312,33 +295,27 @@ Always respond conversationally but be efficient. Keep responses concise unless 
         self.input_entry.delete(0, tk.END)
         self.add_message("You", message, 'user')
         
-        # Process in thread
         threading.Thread(target=self.process_message, args=(message,), daemon=True).start()
     
     def process_message(self, message):
         try:
-            # Add user message to history
-            self.chat_history.append({"role": "user", "parts": [{"text": message}]})
+            self.chat_history.append({"role": "user", "content": message})
             
-            # Generate response using new SDK
-            response = self.client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=self.chat_history
+            response = self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=self.chat_history,
+                max_tokens=1024,
+                temperature=0.7
             )
             
-            reply = response.text
+            reply = response.choices[0].message.content
+            self.chat_history.append({"role": "assistant", "content": reply})
             
-            # Add to history
-            self.chat_history.append({"role": "model", "parts": [{"text": reply}]})
+            if len(self.chat_history) > 22:
+                self.chat_history = [self.chat_history[0]] + self.chat_history[-20:]
             
-            # Keep history manageable (last 20 exchanges)
-            if len(self.chat_history) > 42:
-                self.chat_history = self.chat_history[:2] + self.chat_history[-40:]
-            
-            # Check for commands
             self.execute_commands(reply)
             
-            # Display response (without command syntax)
             display_reply = reply
             for cmd in ['CMD:OPEN_APP:', 'CMD:OPEN_URL:', 'CMD:SEARCH:', 'CMD:CREATE_FILE:',
                        'CMD:READ_FILE:', 'CMD:LIST_FILES:', 'CMD:SYSTEM_INFO', 'CMD:SCREENSHOT',
@@ -352,14 +329,11 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             self.speak(display_reply.strip())
             
         except Exception as e:
-            error_msg = str(e)
-            self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {error_msg}", 'error'))
+            self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {str(e)}", 'error'))
     
     def execute_commands(self, text):
-        """Execute commands from AI response"""
         system = platform.system()
         
-        # Open App
         if 'CMD:OPEN_APP:' in text:
             app = text.split('CMD:OPEN_APP:')[1].split('\n')[0].strip().lower()
             try:
@@ -372,31 +346,27 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                         'file explorer': 'explorer', 'files': 'explorer',
                     }
                     subprocess.Popen(apps.get(app, app), shell=True)
-                elif system == 'Darwin':  # macOS
+                elif system == 'Darwin':
                     subprocess.Popen(['open', '-a', app])
-                else:  # Linux
+                else:
                     subprocess.Popen([app])
             except Exception as e:
                 self.root.after(0, lambda: self.add_message("SYSTEM", f"Couldn't open {app}: {e}", 'error'))
         
-        # Open URL
         if 'CMD:OPEN_URL:' in text:
             url = text.split('CMD:OPEN_URL:')[1].split('\n')[0].strip()
             if not url.startswith('http'):
                 url = 'https://' + url
             webbrowser.open(url)
         
-        # Google Search
         if 'CMD:SEARCH:' in text:
             query = text.split('CMD:SEARCH:')[1].split('\n')[0].strip()
             webbrowser.open(f'https://www.google.com/search?q={query}')
         
-        # System Info
         if 'CMD:SYSTEM_INFO' in text:
             info = self.get_system_info()
             self.root.after(0, lambda: self.add_message("SYSTEM", info, 'system'))
         
-        # Screenshot
         if 'CMD:SCREENSHOT' in text:
             try:
                 import pyautogui
@@ -406,7 +376,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             except Exception as e:
                 self.root.after(0, lambda: self.add_message("SYSTEM", f"Screenshot failed: {e}", 'error'))
         
-        # Volume Control
         if 'CMD:VOLUME:' in text:
             action = text.split('CMD:VOLUME:')[1].split('\n')[0].strip().lower()
             try:
@@ -421,7 +390,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             except:
                 pass
         
-        # Create File
         if 'CMD:CREATE_FILE:' in text:
             parts = text.split('CMD:CREATE_FILE:')[1].split('\n')[0].strip()
             if ':' in parts:
@@ -432,7 +400,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                 except Exception as e:
                     self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {e}", 'error'))
         
-        # Read File
         if 'CMD:READ_FILE:' in text:
             path = text.split('CMD:READ_FILE:')[1].split('\n')[0].strip()
             try:
@@ -441,7 +408,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             except Exception as e:
                 self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {e}", 'error'))
         
-        # List Files
         if 'CMD:LIST_FILES:' in text:
             path = text.split('CMD:LIST_FILES:')[1].split('\n')[0].strip()
             try:
@@ -451,7 +417,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             except Exception as e:
                 self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {e}", 'error'))
         
-        # Shutdown/Restart/Lock
         if 'CMD:SHUTDOWN' in text:
             if messagebox.askyesno("Confirm", "Are you sure you want to shutdown?"):
                 os.system('shutdown /s /t 5' if system == 'Windows' else 'shutdown -h now')
@@ -470,7 +435,7 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
             
-            info = f"""System Information:
+            return f"""System Information:
 ━━━━━━━━━━━━━━━━━━━━━━━━
 • OS: {platform.system()} {platform.release()}
 • CPU Usage: {cpu}%
@@ -478,7 +443,6 @@ Always respond conversationally but be efficient. Keep responses concise unless 
 • Disk: {disk.percent}% ({disk.used // (1024**3):.1f} GB / {disk.total // (1024**3):.1f} GB)
 • Python: {platform.python_version()}
 ━━━━━━━━━━━━━━━━━━━━━━━━"""
-            return info
         except:
             return "Could not retrieve system info"
     
@@ -514,11 +478,9 @@ Always respond conversationally but be efficient. Keep responses concise unless 
     
     def speak(self, text):
         if self.tts_engine:
-            # Clean text for speech
-            clean_text = text[:500]  # Limit length
+            clean_text = text[:500]
             for cmd in ['CMD:', 'http', 'https', '━', '•']:
                 clean_text = clean_text.replace(cmd, '')
-            
             threading.Thread(target=self._speak_thread, args=(clean_text,), daemon=True).start()
     
     def _speak_thread(self, text):
