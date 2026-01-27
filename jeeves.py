@@ -10,7 +10,7 @@ Features:
 - Beautiful Dark UI
 
 Requirements:
-pip install google-generativeai SpeechRecognition pyttsx3 pyautogui psutil pillow
+pip install google-genai SpeechRecognition pyttsx3 pyautogui psutil pillow
 
 Usage:
 1. Get FREE Gemini API key from: https://aistudio.google.com/app/apikey
@@ -35,17 +35,24 @@ from tkinter import ttk, scrolledtext, messagebox, filedialog
 
 # Check and install dependencies
 def install_dependencies():
-    required = ['google-generativeai', 'SpeechRecognition', 'pyttsx3', 'psutil', 'pillow', 'pyautogui']
-    for package in required:
+    required = {
+        'google-genai': 'google.genai',
+        'SpeechRecognition': 'speech_recognition',
+        'pyttsx3': 'pyttsx3',
+        'psutil': 'psutil',
+        'pillow': 'PIL',
+        'pyautogui': 'pyautogui'
+    }
+    for package, import_name in required.items():
         try:
-            __import__(package.replace('-', '_').replace('google-generativeai', 'google.generativeai'))
+            __import__(import_name.split('.')[0])
         except ImportError:
             print(f"Installing {package}...")
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', package, '-q'])
 
 install_dependencies()
 
-import google.generativeai as genai
+from google import genai
 import speech_recognition as sr
 import pyttsx3
 import psutil
@@ -67,8 +74,8 @@ class JeevesAI:
         # Variables
         self.api_key = tk.StringVar()
         self.is_listening = False
-        self.model = None
-        self.chat = None
+        self.client = None
+        self.chat_history = []
         self.tts_engine = None
         self.recognizer = sr.Recognizer()
         
@@ -268,12 +275,20 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             return
         
         try:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-            self.chat = self.model.start_chat(history=[])
+            # Use new google-genai SDK
+            self.client = genai.Client(api_key=api_key)
             
-            # Send system prompt
-            self.chat.send_message(self.system_prompt)
+            # Test connection with a simple request
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents='Say "JEEVES online" in exactly 2 words'
+            )
+            
+            # Initialize chat history with system prompt
+            self.chat_history = [
+                {"role": "user", "parts": [{"text": self.system_prompt}]},
+                {"role": "model", "parts": [{"text": "Understood. I am JEEVES, ready to assist you, Sir. I can control your PC, answer questions, and execute commands. How may I help you today?"}]}
+            ]
             
             self.status_label.config(text="● Connected", fg='#10b981')
             self.save_config()
@@ -282,14 +297,15 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             
         except Exception as e:
             self.status_label.config(text="● Error", fg='#ef4444')
-            messagebox.showerror("Connection Error", f"Failed to connect: {str(e)}")
+            error_msg = str(e)
+            messagebox.showerror("Connection Error", f"Failed to connect: {error_msg}\n\nMake sure your API key is correct.")
     
     def send_message(self):
         message = self.input_entry.get().strip()
         if not message:
             return
         
-        if not self.chat:
+        if not self.client:
             messagebox.showwarning("Not Connected", "Please connect your API key first")
             return
         
@@ -301,8 +317,23 @@ Always respond conversationally but be efficient. Keep responses concise unless 
     
     def process_message(self, message):
         try:
-            response = self.chat.send_message(message)
+            # Add user message to history
+            self.chat_history.append({"role": "user", "parts": [{"text": message}]})
+            
+            # Generate response using new SDK
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=self.chat_history
+            )
+            
             reply = response.text
+            
+            # Add to history
+            self.chat_history.append({"role": "model", "parts": [{"text": reply}]})
+            
+            # Keep history manageable (last 20 exchanges)
+            if len(self.chat_history) > 42:
+                self.chat_history = self.chat_history[:2] + self.chat_history[-40:]
             
             # Check for commands
             self.execute_commands(reply)
@@ -321,7 +352,8 @@ Always respond conversationally but be efficient. Keep responses concise unless 
             self.speak(display_reply.strip())
             
         except Exception as e:
-            self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {str(e)}", 'error'))
+            error_msg = str(e)
+            self.root.after(0, lambda: self.add_message("SYSTEM", f"Error: {error_msg}", 'error'))
     
     def execute_commands(self, text):
         """Execute commands from AI response"""
@@ -337,6 +369,7 @@ Always respond conversationally but be efficient. Keep responses concise unless 
                         'notepad': 'notepad', 'calculator': 'calc', 'explorer': 'explorer',
                         'cmd': 'cmd', 'terminal': 'cmd', 'vscode': 'code', 'word': 'winword',
                         'excel': 'excel', 'powerpoint': 'powerpnt', 'spotify': 'spotify',
+                        'file explorer': 'explorer', 'files': 'explorer',
                     }
                     subprocess.Popen(apps.get(app, app), shell=True)
                 elif system == 'Darwin':  # macOS
