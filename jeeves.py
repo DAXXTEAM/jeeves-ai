@@ -3,7 +3,7 @@ JEEVES AI - Personal PC Assistant
 By DAXXTEAM
 
 SciFi Cyberpunk UI | Continuous Voice | Hindi Support
-Powered by Groq AI (FREE & FAST)
+Powered by Groq AI (FREE & FAST) + Edge TTS (Hindi Voice)
 """
 
 import os
@@ -15,6 +15,7 @@ import threading
 import datetime
 import platform
 import time
+import tempfile
 from pathlib import Path
 
 # GUI
@@ -23,11 +24,15 @@ from tkinter import scrolledtext, messagebox
 
 # Install dependencies
 def install_deps():
-    deps = {'groq': 'groq', 'SpeechRecognition': 'speech_recognition', 'pyttsx3': 'pyttsx3', 
-            'psutil': 'psutil', 'pillow': 'PIL', 'pyautogui': 'pyautogui'}
-    for pkg, imp in deps.items():
+    deps = ['groq', 'SpeechRecognition', 'psutil', 'pillow', 'pyautogui', 'edge-tts', 'pygame']
+    for pkg in deps:
         try:
-            __import__(imp.split('.')[0])
+            if pkg == 'edge-tts':
+                __import__('edge_tts')
+            elif pkg == 'SpeechRecognition':
+                __import__('speech_recognition')
+            else:
+                __import__(pkg.lower().replace('-', '_'))
         except ImportError:
             print(f"Installing {pkg}...")
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', pkg, '-q'])
@@ -36,8 +41,17 @@ install_deps()
 
 from groq import Groq
 import speech_recognition as sr
-import pyttsx3
 import psutil
+import edge_tts
+import asyncio
+
+# For playing audio
+try:
+    import pygame
+    pygame.mixer.init()
+    PYGAME_AVAILABLE = True
+except:
+    PYGAME_AVAILABLE = False
 
 
 class JeevesAI:
@@ -65,54 +79,50 @@ class JeevesAI:
         
         # Variables
         self.api_key = tk.StringVar()
-        self.is_listening = False
         self.continuous_listen = False
         self.client = None
         self.chat_history = []
-        self.tts_engine = None
-        self.tts_lock = threading.Lock()
         self.recognizer = sr.Recognizer()
         self.voice_enabled = tk.BooleanVar(value=True)
+        self.is_speaking = False
+        
+        # Temp folder for audio
+        self.temp_dir = Path(tempfile.gettempdir()) / 'jeeves_audio'
+        self.temp_dir.mkdir(exist_ok=True)
         
         # Config
         self.config_file = Path.home() / '.jeeves_config.json'
         self.load_config()
         
-        # Init TTS - FIXED VERSION
-        self.init_tts_fixed()
-        
         # Create UI
         self.create_cyberpunk_ui()
         
-        # System prompt - Hindi friendly
-        self.system_prompt = """Tu JEEVES hai - ek advanced AI personal assistant jo DAXXTEAM ne banaya hai. Tu Hindi aur English dono mein baat kar sakta hai.
+        # System prompt
+        self.system_prompt = """Tu JEEVES hai - ek AI personal assistant jo DAXXTEAM ne banaya hai.
 
-PERSONALITY:
+RULES:
+- Hindi-English mix (Hinglish) mein baat kar
+- User ko "Boss" bol
+- Chhote aur clear answers de (1-2 lines max)
 - Friendly aur helpful reh
-- User ko "Boss" ya "Sir" bol
-- Thoda witty aur fun reh
-- Short aur clear answers de - 1-2 sentences max
-- Hindi-English mix (Hinglish) use kar
 
-SYSTEM COMMANDS (prefix with CMD:):
-- CMD:OPEN_APP:<app_name> - Apps open karne ke liye
-- CMD:OPEN_URL:<url> - Websites open karne ke liye  
+COMMANDS (use when needed):
+- CMD:OPEN_APP:<app> - App kholne ke liye
+- CMD:OPEN_URL:<url> - Website kholne ke liye
 - CMD:SEARCH:<query> - Google search ke liye
 - CMD:SYSTEM_INFO - System info ke liye
-- CMD:SCREENSHOT - Screenshot lene ke liye
-- CMD:VOLUME:<up/down/mute> - Volume control ke liye
-- CMD:LOCK - PC lock karne ke liye
+- CMD:SCREENSHOT - Screenshot ke liye
+- CMD:VOLUME:<up/down/mute> - Volume ke liye
+- CMD:LOCK - PC lock ke liye
 
-Example: "Haan Boss, Chrome khol raha hoon! CMD:OPEN_APP:chrome"
-
-Hamesha pehle explain kar Hindi mein, phir command de."""
+Example response: "Haan Boss, Chrome khol raha hoon! CMD:OPEN_APP:chrome"
+"""
 
     def load_config(self):
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    self.api_key.set(config.get('api_key', ''))
+                    self.api_key.set(json.load(f).get('api_key', ''))
         except:
             pass
     
@@ -123,47 +133,11 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         except:
             pass
     
-    def init_tts_fixed(self):
-        """Fixed TTS initialization that actually works"""
-        try:
-            # Create fresh engine
-            self.tts_engine = pyttsx3.init()
-            
-            # Get all voices
-            voices = self.tts_engine.getProperty('voices')
-            
-            # Find best voice - prefer female/Zira for clarity
-            selected_voice = None
-            for voice in voices:
-                name = voice.name.lower()
-                # Prefer these voices for better Hindi pronunciation
-                if 'zira' in name or 'hazel' in name:
-                    selected_voice = voice
-                    break
-                elif 'david' in name and not selected_voice:
-                    selected_voice = voice
-            
-            if selected_voice:
-                self.tts_engine.setProperty('voice', selected_voice.id)
-                print(f"TTS Voice: {selected_voice.name}")
-            
-            # Set properties for clarity
-            self.tts_engine.setProperty('rate', 150)  # Slower = clearer
-            self.tts_engine.setProperty('volume', 1.0)  # Full volume
-            
-            # Test TTS
-            print("TTS initialized successfully")
-            
-        except Exception as e:
-            print(f"TTS init error: {e}")
-            self.tts_engine = None
-    
     def create_cyberpunk_ui(self):
-        # Main container
         main = tk.Frame(self.root, bg=self.colors['bg_dark'])
         main.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # ===== HEADER =====
+        # Header
         header = tk.Frame(main, bg=self.colors['bg_dark'])
         header.pack(fill=tk.X, pady=(0, 15))
         
@@ -179,19 +153,17 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         
         tk.Label(title_text, text="JEEVES", font=('Consolas', 32, 'bold'),
                 fg=self.colors['accent_cyan'], bg=self.colors['bg_dark']).pack(anchor='w')
-        tk.Label(title_text, text="AI PERSONAL ASSISTANT", font=('Consolas', 10),
+        tk.Label(title_text, text="CYBERPUNK AI ASSISTANT", font=('Consolas', 10),
                 fg=self.colors['accent_magenta'], bg=self.colors['bg_dark']).pack(anchor='w')
         
-        # Status + Voice toggle
+        # Right side - status
         right_frame = tk.Frame(header, bg=self.colors['bg_dark'])
         right_frame.pack(side=tk.RIGHT)
         
-        # Voice ON/OFF toggle
         self.voice_toggle = tk.Checkbutton(right_frame, text="🔊 VOICE", font=('Consolas', 10, 'bold'),
                                            variable=self.voice_enabled, bg=self.colors['bg_dark'],
                                            fg=self.colors['accent_green'], selectcolor=self.colors['bg_mid'],
-                                           activebackground=self.colors['bg_dark'],
-                                           command=self.toggle_voice_output)
+                                           activebackground=self.colors['bg_dark'])
         self.voice_toggle.pack(side=tk.LEFT, padx=(0, 20))
         
         self.status_frame = tk.Frame(right_frame, bg=self.colors['bg_mid'], padx=15, pady=8)
@@ -205,7 +177,7 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
                                     fg=self.colors['text_secondary'], bg=self.colors['bg_mid'])
         self.status_text.pack(side=tk.LEFT, padx=(8, 0))
         
-        # ===== API KEY BAR =====
+        # API Key Bar
         api_bar = tk.Frame(main, bg=self.colors['bg_light'], padx=20, pady=15)
         api_bar.pack(fill=tk.X, pady=(0, 15))
         
@@ -231,19 +203,16 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
                                      padx=20, pady=8, cursor='hand2', command=self.connect_api)
         self.connect_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        get_key_btn = tk.Button(api_right, text="◈ GET FREE KEY", font=('Consolas', 9),
-                                bg=self.colors['bg_mid'], fg=self.colors['accent_magenta'], relief=tk.FLAT,
-                                padx=15, pady=8, cursor='hand2',
-                                command=lambda: webbrowser.open('https://console.groq.com/keys'))
-        get_key_btn.pack(side=tk.LEFT)
+        tk.Button(api_right, text="◈ FREE KEY", font=('Consolas', 9),
+                  bg=self.colors['bg_mid'], fg=self.colors['accent_magenta'], relief=tk.FLAT,
+                  padx=15, pady=8, cursor='hand2',
+                  command=lambda: webbrowser.open('https://console.groq.com/keys')).pack(side=tk.LEFT)
         
-        # Test voice button
-        test_btn = tk.Button(api_right, text="🔊 TEST", font=('Consolas', 9),
-                            bg=self.colors['bg_mid'], fg=self.colors['accent_orange'], relief=tk.FLAT,
-                            padx=10, pady=8, cursor='hand2', command=self.test_voice)
-        test_btn.pack(side=tk.LEFT, padx=(10, 0))
+        tk.Button(api_right, text="🔊 TEST", font=('Consolas', 9),
+                  bg=self.colors['bg_mid'], fg=self.colors['accent_orange'], relief=tk.FLAT,
+                  padx=10, pady=8, cursor='hand2', command=self.test_voice).pack(side=tk.LEFT, padx=(10, 0))
         
-        # ===== CHAT DISPLAY =====
+        # Chat Display
         chat_container = tk.Frame(main, bg=self.colors['border'], padx=2, pady=2)
         chat_container.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
@@ -259,7 +228,7 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         self.chat.tag_config('error', foreground='#ff4444')
         self.chat.tag_config('time', foreground=self.colors['text_secondary'], font=('Consolas', 9))
         
-        # ===== INPUT AREA =====
+        # Input Area
         input_container = tk.Frame(main, bg=self.colors['bg_dark'])
         input_container.pack(fill=tk.X, pady=(0, 15))
         
@@ -274,57 +243,33 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         
         self.voice_btn = tk.Button(input_container, text="🎤 MIC OFF", font=('Consolas', 11, 'bold'),
                                    bg=self.colors['bg_light'], fg=self.colors['text_secondary'],
-                                   relief=tk.FLAT, width=12, cursor='hand2', command=self.toggle_continuous_voice)
+                                   relief=tk.FLAT, width=12, cursor='hand2', command=self.toggle_mic)
         self.voice_btn.pack(side=tk.LEFT, padx=(0, 10), ipady=10)
         
-        send_btn = tk.Button(input_container, text="◈ SEND", font=('Consolas', 11, 'bold'),
-                            bg=self.colors['accent_magenta'], fg='#ffffff', relief=tk.FLAT,
-                            width=10, cursor='hand2', command=self.send_message)
-        send_btn.pack(side=tk.LEFT, ipady=10)
+        tk.Button(input_container, text="◈ SEND", font=('Consolas', 11, 'bold'),
+                  bg=self.colors['accent_magenta'], fg='#ffffff', relief=tk.FLAT,
+                  width=10, cursor='hand2', command=self.send_message).pack(side=tk.LEFT, ipady=10)
         
-        # ===== QUICK ACTIONS =====
+        # Quick Actions
         actions = tk.Frame(main, bg=self.colors['bg_dark'])
         actions.pack(fill=tk.X)
         
-        quick_btns = [
-            ("📁 FILES", "File Explorer kholo"),
-            ("🌐 BROWSER", "Chrome kholo"),
-            ("💻 SYSTEM", "System info dikhao"),
-            ("📸 PHOTO", "Screenshot lo"),
-            ("🔊 VOL+", "Volume badhao"),
-            ("🔇 MUTE", "Mute karo"),
-            ("🔒 LOCK", "PC lock karo"),
-        ]
+        for text, cmd in [("📁 FILES", "File Explorer kholo"), ("🌐 CHROME", "Chrome kholo"),
+                          ("💻 SYSTEM", "System info dikhao"), ("📸 PHOTO", "Screenshot lo"),
+                          ("🔊 VOL+", "Volume badhao"), ("🔇 MUTE", "Mute karo")]:
+            tk.Button(actions, text=text, font=('Consolas', 9, 'bold'),
+                     bg=self.colors['bg_light'], fg=self.colors['accent_purple'],
+                     relief=tk.FLAT, padx=12, pady=6, cursor='hand2',
+                     command=lambda c=cmd: self.quick_action(c)).pack(side=tk.LEFT, padx=(0, 8))
         
-        for text, cmd in quick_btns:
-            btn = tk.Button(actions, text=text, font=('Consolas', 9, 'bold'),
-                           bg=self.colors['bg_light'], fg=self.colors['accent_purple'],
-                           relief=tk.FLAT, padx=12, pady=6, cursor='hand2',
-                           command=lambda c=cmd: self.quick_action(c))
-            btn.pack(side=tk.LEFT, padx=(0, 8))
-        
-        # ===== FOOTER =====
-        footer = tk.Label(main, text="◈ DAXXTEAM ◈ Groq AI ◈ Llama 3.3 70B ◈ 100% FREE ◈",
-                         font=('Consolas', 9), fg=self.colors['text_secondary'], bg=self.colors['bg_dark'])
-        footer.pack(pady=(15, 0))
+        # Footer
+        tk.Label(main, text="◈ DAXXTEAM ◈ Groq AI ◈ Edge TTS Hindi ◈ 100% FREE ◈",
+                font=('Consolas', 9), fg=self.colors['text_secondary'], 
+                bg=self.colors['bg_dark']).pack(pady=(15, 0))
         
         # Welcome
-        self.add_message("JEEVES", "Namaste Boss! Main JEEVES hoon. API key daalo aur Connect karo. 🔊TEST button se voice check karo!", 'jeeves')
-        
-        # Animate
+        self.add_message("JEEVES", "Namaste Boss! Main JEEVES hoon. API key daalo, Connect karo, aur TEST button se awaaz check karo!", 'jeeves')
         self.animate_icon()
-    
-    def toggle_voice_output(self):
-        """Toggle voice on/off"""
-        if self.voice_enabled.get():
-            self.add_message("SYSTEM", "Voice ON - JEEVES bolega", 'system')
-        else:
-            self.add_message("SYSTEM", "Voice OFF - Sirf text", 'system')
-    
-    def test_voice(self):
-        """Test if voice is working"""
-        self.add_message("SYSTEM", "Testing voice...", 'system')
-        self.speak("Namaste Boss! Main JEEVES hoon. Meri awaaz aa rahi hai?")
     
     def animate_icon(self):
         colors = [self.colors['accent_cyan'], self.colors['accent_magenta'], 
@@ -346,10 +291,71 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         self.chat.see(tk.END)
         self.chat.config(state=tk.DISABLED)
     
+    def test_voice(self):
+        """Test voice output"""
+        self.add_message("SYSTEM", "Testing voice... 🔊", 'system')
+        threading.Thread(target=lambda: self.speak("Namaste Boss! Main JEEVES hoon. Meri awaaz aa rahi hai!"), daemon=True).start()
+    
+    def speak(self, text):
+        """Speak using Edge TTS (Microsoft voices - works great!)"""
+        if not self.voice_enabled.get() or self.is_speaking:
+            return
+        
+        if not text or len(text.strip()) < 2:
+            return
+        
+        # Clean text
+        clean = text[:500]
+        for skip in ['CMD:', 'http', 'https', '━', '◈', '●', '**', '__', '\n']:
+            clean = clean.replace(skip, ' ')
+        clean = ' '.join(clean.split())
+        
+        if not clean:
+            return
+        
+        self.is_speaking = True
+        
+        try:
+            # Generate audio file
+            audio_file = self.temp_dir / f"speech_{int(time.time())}.mp3"
+            
+            # Use Edge TTS - Hindi voice
+            async def generate():
+                # Hindi female voice - sounds natural
+                communicate = edge_tts.Communicate(clean, "hi-IN-SwaraNeural")
+                await communicate.save(str(audio_file))
+            
+            # Run async
+            asyncio.run(generate())
+            
+            # Play audio
+            if audio_file.exists():
+                if PYGAME_AVAILABLE:
+                    pygame.mixer.music.load(str(audio_file))
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        time.sleep(0.1)
+                else:
+                    # Fallback: use system player
+                    if platform.system() == 'Windows':
+                        os.system(f'start /min wmplayer "{audio_file}"')
+                        time.sleep(3)
+                
+                # Cleanup
+                try:
+                    audio_file.unlink()
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"TTS Error: {e}")
+        finally:
+            self.is_speaking = False
+    
     def connect_api(self):
         api_key = self.api_key.get().strip()
         if not api_key:
-            messagebox.showerror("Error", "API key daalo pehle!")
+            messagebox.showerror("Error", "API key daalo!")
             return
         
         try:
@@ -368,19 +374,15 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
             
             self.save_config()
             self.add_message("SYSTEM", "Connected! Ab bolo ya likho.", 'system')
-            self.speak("JEEVES online ho gaya Boss! Bolo, main sun raha hoon!")
+            threading.Thread(target=lambda: self.speak("JEEVES online ho gaya Boss! Bolo, main sun raha hoon!"), daemon=True).start()
             
         except Exception as e:
             self.status_dot.config(fg='#ff3333')
-            self.status_text.config(text="ERROR", fg='#ff3333')
             messagebox.showerror("Error", f"Connect fail: {str(e)}")
     
     def send_message(self):
         message = self.input_entry.get().strip()
-        if not message:
-            return
-        if not self.client:
-            messagebox.showwarning("Oops!", "Pehle API connect karo!")
+        if not message or not self.client:
             return
         
         self.input_entry.delete(0, tk.END)
@@ -394,22 +396,22 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
             response = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=self.chat_history,
-                max_tokens=512,
+                max_tokens=256,
                 temperature=0.7
             )
             
             reply = response.choices[0].message.content
             self.chat_history.append({"role": "assistant", "content": reply})
             
-            if len(self.chat_history) > 22:
-                self.chat_history = [self.chat_history[0]] + self.chat_history[-20:]
+            if len(self.chat_history) > 20:
+                self.chat_history = [self.chat_history[0]] + self.chat_history[-18:]
             
             self.execute_commands(reply)
             
             # Clean for display
             display = reply
             for cmd in ['CMD:OPEN_APP:', 'CMD:OPEN_URL:', 'CMD:SEARCH:', 'CMD:SYSTEM_INFO', 
-                       'CMD:SCREENSHOT', 'CMD:VOLUME:', 'CMD:LOCK', 'CMD:SHUTDOWN', 'CMD:RESTART']:
+                       'CMD:SCREENSHOT', 'CMD:VOLUME:', 'CMD:LOCK']:
                 if cmd in display:
                     idx = display.find(cmd)
                     end = display.find('\n', idx) if '\n' in display[idx:] else len(display)
@@ -418,7 +420,7 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
             display = display.strip()
             self.root.after(0, lambda: self.add_message("JEEVES", display, 'jeeves'))
             
-            # SPEAK THE RESPONSE
+            # SPEAK
             if display:
                 self.speak(display)
             
@@ -431,41 +433,41 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
         if 'CMD:OPEN_APP:' in text:
             app = text.split('CMD:OPEN_APP:')[1].split('\n')[0].strip().lower()
             try:
-                if system == 'Windows':
-                    apps = {'chrome': 'chrome', 'firefox': 'firefox', 'edge': 'msedge',
-                           'notepad': 'notepad', 'calculator': 'calc', 'explorer': 'explorer',
-                           'cmd': 'cmd', 'terminal': 'wt', 'vscode': 'code', 'file explorer': 'explorer'}
-                    subprocess.Popen(apps.get(app, app), shell=True)
-            except Exception as e:
-                self.root.after(0, lambda: self.add_message("SYSTEM", f"App error: {e}", 'error'))
+                apps = {'chrome': 'chrome', 'firefox': 'firefox', 'edge': 'msedge',
+                       'notepad': 'notepad', 'calculator': 'calc', 'explorer': 'explorer',
+                       'file explorer': 'explorer', 'cmd': 'cmd', 'vscode': 'code'}
+                subprocess.Popen(apps.get(app, app), shell=True)
+            except:
+                pass
         
         if 'CMD:OPEN_URL:' in text:
             url = text.split('CMD:OPEN_URL:')[1].split('\n')[0].strip()
-            if not url.startswith('http'):
-                url = 'https://' + url
-            webbrowser.open(url)
+            webbrowser.open(url if url.startswith('http') else 'https://' + url)
         
         if 'CMD:SEARCH:' in text:
             query = text.split('CMD:SEARCH:')[1].split('\n')[0].strip()
             webbrowser.open(f'https://www.google.com/search?q={query}')
         
         if 'CMD:SYSTEM_INFO' in text:
-            info = self.get_system_info()
-            self.root.after(0, lambda: self.add_message("SYSTEM", info, 'system'))
+            try:
+                info = f"OS: {platform.system()} | CPU: {psutil.cpu_percent()}% | RAM: {psutil.virtual_memory().percent}%"
+                self.root.after(0, lambda: self.add_message("SYSTEM", info, 'system'))
+            except:
+                pass
         
         if 'CMD:SCREENSHOT' in text:
             try:
                 import pyautogui
-                path = Path.home() / 'Desktop' / f'screenshot_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+                path = Path.home() / 'Desktop' / f'screenshot_{int(time.time())}.png'
                 pyautogui.screenshot(str(path))
-                self.root.after(0, lambda: self.add_message("SYSTEM", f"Screenshot: {path}", 'system'))
-            except Exception as e:
-                self.root.after(0, lambda: self.add_message("SYSTEM", f"Screenshot fail: {e}", 'error'))
+                self.root.after(0, lambda: self.add_message("SYSTEM", f"Screenshot saved: {path.name}", 'system'))
+            except:
+                pass
         
         if 'CMD:VOLUME:' in text:
-            action = text.split('CMD:VOLUME:')[1].split('\n')[0].strip().lower()
             try:
                 import pyautogui
+                action = text.split('CMD:VOLUME:')[1].split('\n')[0].strip().lower()
                 if action == 'up':
                     pyautogui.press('volumeup', presses=5)
                 elif action == 'down':
@@ -475,43 +477,23 @@ Hamesha pehle explain kar Hindi mein, phir command de."""
             except:
                 pass
         
-        if 'CMD:LOCK' in text:
-            if system == 'Windows':
-                os.system('rundll32.exe user32.dll,LockWorkStation')
+        if 'CMD:LOCK' in text and system == 'Windows':
+            os.system('rundll32.exe user32.dll,LockWorkStation')
     
-    def get_system_info(self):
-        try:
-            cpu = psutil.cpu_percent()
-            mem = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
-            return f"""◈ SYSTEM INFO ◈
-━━━━━━━━━━━━━━━━━━
-OS: {platform.system()} {platform.release()}
-CPU: {cpu}%
-RAM: {mem.percent}% ({mem.used//(1024**3)}GB / {mem.total//(1024**3)}GB)
-Disk: {disk.percent}% used
-━━━━━━━━━━━━━━━━━━"""
-        except:
-            return "System info nahi mila"
-    
-    def toggle_continuous_voice(self):
+    def toggle_mic(self):
         if self.continuous_listen:
             self.continuous_listen = False
-            self.is_listening = False
             self.voice_btn.config(text="🎤 MIC OFF", bg=self.colors['bg_light'], 
                                  fg=self.colors['text_secondary'])
-            self.add_message("SYSTEM", "Mic OFF", 'system')
         else:
             if not self.client:
-                messagebox.showwarning("Oops!", "Pehle API connect karo!")
+                messagebox.showwarning("!", "Pehle Connect karo!")
                 return
             self.continuous_listen = True
-            self.voice_btn.config(text="🔴 MIC ON", bg=self.colors['accent_magenta'], 
-                                 fg='#ffffff')
-            self.add_message("SYSTEM", "Mic ON! Bolo Hindi ya English mein...", 'system')
-            threading.Thread(target=self.continuous_listen_loop, daemon=True).start()
+            self.voice_btn.config(text="🔴 MIC ON", bg=self.colors['accent_magenta'], fg='#ffffff')
+            threading.Thread(target=self.listen_loop, daemon=True).start()
     
-    def continuous_listen_loop(self):
+    def listen_loop(self):
         while self.continuous_listen:
             try:
                 with sr.Microphone() as source:
@@ -520,76 +502,23 @@ Disk: {disk.percent}% used
                     
                     try:
                         audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
-                        
                         try:
                             text = self.recognizer.recognize_google(audio, language='hi-IN')
                         except:
                             text = self.recognizer.recognize_google(audio, language='en-IN')
                         
                         if text and self.continuous_listen:
-                            self.root.after(0, lambda t=text: self.process_voice_input(t))
+                            self.root.after(0, lambda t=text: self._process_voice(t))
                             time.sleep(2)
-                            
-                    except sr.WaitTimeoutError:
+                    except:
                         pass
-                    except sr.UnknownValueError:
-                        pass
-                        
-            except Exception as e:
-                if self.continuous_listen:
-                    time.sleep(1)
+            except:
+                time.sleep(1)
     
-    def process_voice_input(self, text):
+    def _process_voice(self, text):
         self.input_entry.delete(0, tk.END)
         self.input_entry.insert(0, text)
         self.send_message()
-    
-    def speak(self, text):
-        """Speak the text - FIXED VERSION"""
-        if not self.voice_enabled.get():
-            return
-        
-        if not self.tts_engine:
-            print("TTS engine not available")
-            return
-        
-        if not text or len(text.strip()) < 2:
-            return
-        
-        # Clean text
-        clean = text[:400]
-        for skip in ['CMD:', 'http', 'https', '━', '◈', '●', '**', '__']:
-            clean = clean.replace(skip, '')
-        clean = clean.strip()
-        
-        if clean:
-            # Run in thread to not block UI
-            threading.Thread(target=self._speak_now, args=(clean,), daemon=True).start()
-    
-    def _speak_now(self, text):
-        """Actually speak - runs in thread"""
-        with self.tts_lock:  # Prevent multiple speaks at once
-            try:
-                # Reinitialize engine each time (fixes Windows issues)
-                engine = pyttsx3.init()
-                
-                # Set voice
-                voices = engine.getProperty('voices')
-                for voice in voices:
-                    if 'zira' in voice.name.lower():
-                        engine.setProperty('voice', voice.id)
-                        break
-                
-                engine.setProperty('rate', 150)
-                engine.setProperty('volume', 1.0)
-                
-                # Speak
-                engine.say(text)
-                engine.runAndWait()
-                engine.stop()
-                
-            except Exception as e:
-                print(f"Speak error: {e}")
     
     def quick_action(self, action):
         self.input_entry.delete(0, tk.END)
